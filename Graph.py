@@ -38,55 +38,70 @@ def graph_data_maker(messaging: torch.Tensor, supervision: torch.Tensor, negativ
 
 
 def mini_batch_maker(messaging, supervision, candidates, x_feature='one-hot'):
-  # heads = supervision[:, 0]
-  # relations = supervision[:, 1]
-  # tails = supervision[:, -1]
+  heads = supervision[:, Global.HEAD_INDEX.value]
+  relations = supervision[:, Global.RELATION_INDEX.value]
+  tails = supervision[:, Global.TAIL_INDEX.value]
 
-  # ct_size = supervision.shape[0] // 2
-  # ch_size = supervision.shape[0] - ct_size
-  # while 1:
-  #   negative_samples_corrupted_tails = torch.vstack(
-  #       (
-  #           heads[: ct_size], 
-  #           relations[: ct_size], 
-  #           torch.multinomial(
-  #               candidates.type(torch.float).to(Global.DEVICE.value), 
-  #               ct_size
-  #           )
-  #       )
-  #   ).t().contiguous()
-
-  #   negative_samples_corrupted_heads = torch.vstack(
-  #       ( 
-  #           torch.multinomial(
-  #               candidates.type(torch.float).to(Global.DEVICE.value), 
-  #               ch_size
-  #           ), 
-  #           relations[ch_size:], 
-  #           tails[ch_size:]
-  #       )
-  #   ).t().contiguous()
-
-  #   negative_samples = torch.cat(
-  #       (negative_samples_corrupted_heads, negative_samples_corrupted_tails),
-  #       dim=0
-  #   )
-  #   if check_negative_samples(negative_samples, sorted_train_set):
-  #     break
-
-
-  relations = supervision[:, 1]
-  while True:
-    batch_size = supervision.shape[0]
-    negative_samples = torch.vstack(
+  ct_size = supervision.shape[0] // 2
+  ch_size = supervision.shape[0] - ct_size
+  while 1:
+    while 1:
+      c_tails = torch.unique((candidates.shape[0] * torch.rand(ct_size)).type(torch.int32))
+      if c_tails.shape[0] == ct_size:
+        break
+    negative_samples_corrupted_tails = torch.vstack(
         (
-            torch.multinomial(candidates.type(torch.float).to(Global.DEVICE.value), batch_size),
-            relations,
-            torch.multinomial(candidates.type(torch.float).to(Global.DEVICE.value), batch_size)
+            heads[: ct_size], 
+            relations[: ct_size], 
+            c_tails.to(Global.DEVICE.value)
+            # torch.multinomial(
+            #     candidates.type(torch.float).to(Global.DEVICE.value), 
+            #     ct_size
+            # )
         )
     ).t().contiguous()
+    while 1:
+      c_heads = torch.unique((candidates.shape[0] * torch.rand(ch_size)).type(torch.int32))
+      if c_heads.shape[0] == ch_size:
+          break
+    negative_samples_corrupted_heads = torch.vstack(
+        ( 
+            # torch.multinomial(
+            #     candidates.type(torch.float).to(Global.DEVICE.value), 
+            #     ch_size
+            # ), 
+            c_heads.to(Global.DEVICE.value),
+            relations[ch_size:], 
+            tails[ch_size:]
+        )
+    ).t().contiguous()
+
+    negative_samples = torch.cat(
+        (negative_samples_corrupted_heads, negative_samples_corrupted_tails),
+        dim=0
+    )
+    ####################
+    break
+    # odds of picking a valid training triplet is low, even if a valid triplet is selected as a negative triplet,
+    # the same triplet will also be selected as a valid positive triplet at exactly #epochs times
+    # #(h, r, t) as a positive triplet >> #(h, r, t) as a negative triplet
+    ####################
     if check_negative_samples(negative_samples, sorted_train_set):
       break
+
+
+  # relations = supervision[:, Global.RELATION_INDEX.value]
+  # while True:
+  #   batch_size = supervision.shape[0]
+  #   negative_samples = torch.vstack(
+  #       (
+  #           torch.multinomial(candidates.type(torch.float).to(Global.DEVICE.value), batch_size),
+  #           relations,
+  #           torch.multinomial(candidates.type(torch.float).to(Global.DEVICE.value), batch_size)
+  #       )
+  #   ).t().contiguous()
+  #   if check_negative_samples(negative_samples, sorted_train_set):
+  #     break
 
   graph = graph_data_maker(
       messaging=messaging,
@@ -97,3 +112,18 @@ def mini_batch_maker(messaging, supervision, candidates, x_feature='one-hot'):
   )
 
   return graph
+
+
+def enrich_messaging(messaging):
+  heads = messaging[:, Global.HEAD_INDEX.value]
+  tails = messaging[:, Global.TAIL_INDEX.value]
+  relations = messaging[:, Global.RELATION_INDEX.value]
+  
+  tail_to_head = torch.vstack(
+      (tails, relations + Global.NUM_RELATIONS.value, heads)
+  ).t()
+
+  return torch.cat(
+      (messaging, tail_to_head),
+      dim=0
+  )
