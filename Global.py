@@ -15,6 +15,7 @@ import numpy as np
 import typing 
 from typing import NoReturn
 
+
 class Global(Enum):
   HEAD_INDEX = 0
   RELATION_INDEX = 1
@@ -25,11 +26,12 @@ class Global(Enum):
   MINI_BATCH_SIZE = 32
   DISP_HITS = False
   MANUAL_SEED = 2021
-  MARGIN = 32
+  MARGIN = 35
+  NUM_BASES = 3
   REDUCTION = 'sum'
 
 
-torch.manual_seed(Global.MANUAL_SEED.value)
+# torch.manual_seed(Global.MANUAL_SEED.value)
 dataset = OBL2021Dataset()
 evaluator = OBL2021Evaluator()
 kg = torch.cat((dataset.training, dataset.validation, dataset.testing), dim=0)
@@ -44,4 +46,4 @@ train_set = dataset.training.to(Global.DEVICE.value) # torch.tensor of shape(num
 val_set = dataset.validation.to(Global.DEVICE.value) # torch.tensor of shape(num_val,3)
 test_set = dataset.testing.to(Global.DEVICE.value)   # torch.tensor of shape(num_train,3)
 dataset = None
-sorted_train_set = train_set[torch.sort(train_set[:, 0])[1]]
+sorted_train_set = train_set[torch.sort(train_set[:, Global.HEAD_INDEX.value])[1]]
